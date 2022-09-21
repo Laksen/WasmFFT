@@ -1,0 +1,34 @@
+<html>
+    <head>
+        <script src="../fft.js"></script>
+        <script>
+            async function test1()
+            {
+                await getFFT(256, "complex", "complex").then(transform => {
+                    // Complex input is interleaved real/imag pairs, real input is a flat array of real values.
+                    var input = transform.getInputBuffer();
+                    // For complex outputs an array of Float32Arrays will be output. For real output (magsqr) only a single Float32Array wil be returned.
+                    var [outputReal, outputImag] = transform.getOutputBuffer();
+
+                    // Write input
+                    for (var i = 0; i < transform.points; i++) {
+                        // Input is interleaved when using complex input
+                        input[2 * i + 0] = Math.cos(i / 5);
+                        input[2 * i + 1] = Math.sin(i / 5);
+                    }
+
+                    // Run transform
+                    transform.run();
+
+                    // Do something with outputs
+                    for (var i = 0; i < transform.points; i++) {
+                        // Input is interleaved when using complex input
+                        console.log(i, outputReal[i], outputImag[i]);
+                    }
+                });
+            }
+        </script>
+    </head>
+    <body onload="test1()">
+    </body>
+</html>
