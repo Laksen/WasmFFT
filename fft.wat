@@ -9,6 +9,8 @@
     (import "config" "points" (global $points i32))
     (import "config" "inputType" (global $inputType i32))
     (import "config" "outputType" (global $outputType i32))
+    (import "config" "shift" (global $shift i32))
+    (import "config" "scale" (global $scale f32))
 
     (memory (export "memory") 1)
 
@@ -16,6 +18,7 @@
 
     (global $fftBits        (mut i32) (i32.const 0))
 
+    (global $outBufferR     (mut i32) (i32.const 0))
     (global $workBufferR    (mut i32) (i32.const 0))
     (global $workBufferI    (mut i32) (i32.const 0))
     (global $inBuffer       (mut i32) (i32.const 0))
@@ -83,9 +86,13 @@
 
         (local $_points i32)
         (local $bufR i32)
+        (local $outR i32)
         (local $bufI i32)
         (local $i    i32)
         (local $tmp  v128)
+
+        (local $outMask     i32)
+        (local $outOffset   i32)
 
         global.get      $points
         local.set       $_points
@@ -94,13 +101,38 @@
         local.set       $bufR
         global.get      $workBufferI
         local.set       $bufI
+        global.get      $outBufferR
+        local.set       $outR
         
         i32.const       0
         local.set       $i
 
+        local.get       $_points
+        i32.const       4
+        i32.mul
+        i32.const       1
+        i32.sub
+        local.set       $outMask
+
+        global.get      $shift
+        (if
+            (then
+                local.get       $_points
+                i32.const       2
+                i32.mul
+                local.set       $outOffset
+            )
+            (else
+                i32.const       0
+                local.set       $outOffset
+            )
+        )
+
         (loop $inner_loop
 
-            local.get       $bufR
+            local.get       $outR
+            local.get       $outOffset
+            i32.add
 
             local.get       $bufR
             v128.load
@@ -118,6 +150,13 @@
             v128.store
 
             ;; Done
+            local.get       $outOffset
+            i32.const       16
+            i32.add
+            local.get       $outMask
+            i32.and
+            local.set       $outOffset
+
             local.get       $bufR
             i32.const       16
             i32.add
@@ -152,6 +191,7 @@
         (local $yr      v128)
         (local $yi      v128)
         (local $tmp     v128)
+        (local $scaling v128)
 
         ;; nb = self.points
         global.get      $points
@@ -170,6 +210,11 @@
         ;; outIdxI = self.base(self.bufferImag)
         global.get      $workBufferI
         local.set       $outIdxI
+
+        ;; scaling = splat scale
+        global.get      $scale
+        f32x4.splat
+        local.set       $scaling
 
         ;; for _ in range(0, self.points, 4):
         (loop $inner_loop
@@ -245,10 +290,14 @@
             ;; self.storeF32x4(self.bufferReal, outIdxR, xr)
             local.get       $outIdxR
             local.get       $xr
+            local.get       $scaling
+            f32x4.mul
             v128.store
             ;; self.storeF32x4(self.bufferImag, outIdxI, xi)
             local.get       $outIdxI
             local.get       $xi
+            local.get       $scaling
+            f32x4.mul
             v128.store
 
             ;; outIdxR += 16
@@ -299,11 +348,8 @@
         i32.mul
         local.set       $nb
 
-        ;; let scaling = 1.0 / points;
-        f32.const       1
-        ;; global.get      $points
-        ;; f32.convert_i32_u
-        ;; f32.div
+        ;; let scaling = scale
+        global.get      $scale
         f32x4.splat
         local.set       $scaling
 
@@ -1891,6 +1937,21 @@
         call            $allocateBuffer
         global.set      $workBufferI
 
+        global.get      $shift
+        (if
+            (then
+                global.get      $points
+                i32.const       4
+                i32.mul
+                i32.const       16
+                call            $allocateBuffer
+                global.set      $outBufferR
+            )
+            (else
+                global.get      $workBufferR
+                global.set      $outBufferR
+            )
+        )
 
         global.get      $points
         i32.const       4
@@ -1947,7 +2008,7 @@
     )
 
     (func (export "getOutputBuffers") (result i32 i32)
-        global.get      $workBufferR
+        global.get      $outBufferR
         global.get      $workBufferI
     )
 

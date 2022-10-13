@@ -63,15 +63,20 @@ class FFTWasmImpl {
  * @param {Number} points Number of points in FFT
  * @param {String} inputType Type of inputs. Can be "real" or "complex".
  * @param {String} outputType Type of output. Can be "magsqr" or "complex". "magsqr" returns an array of Float32 containing |Fi]^2
+ * @param {String} wasmPath Path to .wasm file
+ * @param {Boolean} shift Whether to shift so omega(0) is at index points/2
+ * @param {Number} scale Scale input by this value
  * @returns {Promise<FFTWasmImpl>}
  */
-async function getFFT(points, inputType = "complex", outputType = "complex", wasmPath = "/fft.wasm") {
+async function getFFT(points, inputType = "complex", outputType = "complex", wasmPath = "/fft.wasm", shift = false, scale = 1.0) {
     const importObject = {
         Math: Math,
         config: {
             points: points,
             inputType:  {"complex": 0, "real": 1}[inputType],
-            outputType: {"magsqr": 0, "complex": 1}[outputType]
+            outputType: {"magsqr": 0, "complex": 1}[outputType],
+            shift: shift ? 1 : 0,
+            scale: scale
         }
     };
 
